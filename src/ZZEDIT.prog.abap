@@ -33,14 +33,23 @@
 *& DATE        DEVELOPER           REQNO       DESCRIPTIONS            *
 *& ==========  =================== ==========  ========================*
 *& 2024.10.22  ABAP三叔                         初始开发
+*& 2024.10.24  ABAP三叔                         增加对VOFM自定义例程程序支持
 *&
 *&---------------------------------------------------------------------*
 REPORT zzedit.
-TABLES: rs38m,rs38l,seoclass,seocpdkey.
+TABLES: rs38m,rs38l,seoclass,seocpdkey,tfrm.
+
+TYPES: BEGIN OF gty_vofm,
+         grpze                TYPE grpze,
+         user_grpno_first     TYPE tfrm-grpno,
+         include_traeger_name TYPE progname,
+       END OF gty_vofm.
+
 
 DATA gs_header TYPE header_fb.
 DATA gt_result TYPE TABLE OF seop_method_w_include.
 DATA gs_result TYPE seop_method_w_include.
+DATA gt_vofm TYPE TABLE OF gty_vofm.
 
 DATA gv_error TYPE abap_bool.
 DATA gv_subrc LIKE sy-subrc.
@@ -102,9 +111,42 @@ AT SELECTION-SCREEN ON VALUE-REQUEST FOR cpdname.
 
 
 START-OF-SELECTION.
+  PERFORM get_vofm.
   PERFORM check_input.
   PERFORM edit_report.
 
+FORM get_vofm.
+  DATA lt_values TYPE TABLE OF dd07v.
+  FIELD-SYMBOLS <fs_grpze> TYPE tfrm-grpze.
+  FIELD-SYMBOLS <fs_name> TYPE progname.
+  CALL FUNCTION 'GET_DOMAIN_VALUES'
+    EXPORTING
+      domname         = 'GRPZE'
+    TABLES
+      values_tab      = lt_values
+    EXCEPTIONS
+      no_values_found = 1
+      OTHERS          = 2.
+  IF sy-subrc = 0.
+
+    LOOP AT lt_values INTO DATA(ls_values).
+      APPEND INITIAL LINE TO gt_vofm ASSIGNING FIELD-SYMBOL(<fs_vofm>).
+      <fs_vofm>-grpze = ls_values-domvalue_l.
+      PERFORM xd0200_user_grpno_first IN PROGRAM sapmv80h USING <fs_vofm>-grpze
+                                                                <fs_vofm>-user_grpno_first.
+      ASSIGN ('(SAPMV80H)ACT_GRPZE') TO <fs_grpze>.
+      CHECK sy-subrc = 0.
+      <fs_grpze> = <fs_vofm>-grpze.
+      PERFORM aktivieren_traeger_setzen IN PROGRAM sapmv80h USING <fs_vofm>-user_grpno_first.
+      ASSIGN ('(SAPMV80H)INCLUDE_TRAEGER_NAME') TO <fs_name>.
+      CHECK sy-subrc = 0.
+      <fs_vofm>-include_traeger_name = <fs_name>.
+    ENDLOOP.
+    DELETE gt_vofm WHERE include_traeger_name IS INITIAL.
+    SORT gt_vofm BY include_traeger_name.
+    DELETE ADJACENT DUPLICATES FROM gt_vofm COMPARING include_traeger_name.
+  ENDIF.
+ENDFORM.
 
 FORM check_input.
   CASE abap_true.
@@ -150,6 +192,8 @@ FORM edit_report.
 ENDFORM.
 
 FORM check_program USING name TYPE rs38m-programm.
+  DATA lv_include_traeger_name TYPE progname.
+  DATA lv_grpno TYPE tfrm-grpno.
   CLEAR: function,clsname,cpdname.
   gv_error = abap_true.
   IF name IS INITIAL.
@@ -169,6 +213,18 @@ FORM check_program USING name TYPE rs38m-programm.
       RETURN.
     ENDIF.
   ELSE.
+    "检查是否为VOFM函数
+    IF strlen( name ) = 8.
+      lv_include_traeger_name = name(5) && 'NNN'.
+      lv_grpno = name+5(3).
+      READ TABLE gt_vofm INTO DATA(ls_vofm) WITH KEY include_traeger_name = lv_include_traeger_name.
+      IF sy-subrc = 0.
+        IF lv_grpno >= ls_vofm-user_grpno_first.
+          gv_error = abap_false.
+          RETURN.
+        ENDIF.
+      ENDIF.
+    ENDIF.
     IF name(4) = 'SAPL'.
       "函数组
       SELECT COUNT( * ) FROM tadir WHERE obj_name = @name+4(*) AND ( devclass LIKE 'Z%' OR devclass = '$TMP'  ).
