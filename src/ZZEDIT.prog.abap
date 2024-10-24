@@ -213,7 +213,7 @@ FORM check_program USING name TYPE rs38m-programm.
       RETURN.
     ENDIF.
   ELSE.
-    "检查是否为VOFM函数
+    "检查是否为VOFM例程程序
     IF strlen( name ) = 8.
       lv_include_traeger_name = name(5) && 'NNN'.
       lv_grpno = name+5(3).
