@@ -29,12 +29,12 @@
 *& 免责声明
 *&    1. 用户在使用本程序时应自行承担风险。用户应负责确保本程序的使用符合所有适用的法律法规，并承担因使用本程序而产生的所有后果。
 *&---------------------------------------------------------------------*
-*& 变更记录：                                                          *
+*& 变更记录                                                             *
 *& DATE        DEVELOPER           REQNO       DESCRIPTIONS            *
 *& ==========  =================== ==========  ========================*
 *& 2024.10.22  ABAP三叔                         初始开发
 *& 2024.10.24  ABAP三叔                         增加对VOFM自定义例程程序支持
-*&
+*& 2024.12.13  ABAP三叔                         增加代码语法检查
 *&---------------------------------------------------------------------*
 REPORT zzedit.
 TABLES: rs38m,rs38l,seoclass,seocpdkey,tfrm.
@@ -182,12 +182,19 @@ FORM edit_report.
   DATA: BEGIN OF src OCCURS 1,
           txt(255) TYPE c,
         END OF src.
-
+  DATA: mess TYPE string,
+        lin  TYPE i,
+        wrd  TYPE string,
+        dir  TYPE trdir.
   READ REPORT programm INTO src.
   EDITOR-CALL FOR src.
-
   IF sy-subrc = 0.
-    INSERT REPORT programm FROM src.
+    SYNTAX-CHECK FOR src MESSAGE mess LINE lin WORD wrd.
+    IF sy-subrc = 0.
+      INSERT REPORT programm FROM src.
+    ELSE.
+      MESSAGE mess TYPE 'I'.
+    ENDIF.
   ENDIF.
 ENDFORM.
 
