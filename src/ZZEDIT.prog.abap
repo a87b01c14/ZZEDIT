@@ -361,7 +361,7 @@ FORM f4_cpdname.
 *   MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
 *     WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
   ENDIF.
-  clsname = lt_dynpread[ 1 ]-fieldvalue.
+  clsname = to_upper( lt_dynpread[ 1 ]-fieldvalue ).
   CHECK clsname IS NOT INITIAL.
   cl_oo_classname_service=>get_all_method_includes( EXPORTING  clsname            = clsname
                                                     RECEIVING  result             = gt_result
